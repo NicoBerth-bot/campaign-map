@@ -102,15 +102,17 @@ function drawGrid() {
   gridLayer.clearLayers();
   if (!document.getElementById('toggleGrid').checked) return;
 
-  const size = currentHexSize();
-  const cols = Math.ceil(mapSize.w / (Math.sqrt(3) * size)) + 2;
-  const rows = Math.ceil(mapSize.h / (1.5 * size)) + 2;
+  const size = currentHexSize() || 100; // force une taille par défaut
+  const cols = Math.ceil(mapSize.w / (Math.sqrt(3) * size)) + 10;
+  const rows = Math.ceil(mapSize.h / (1.5 * size)) + 10;
 
-  for (let r = -1; r <= rows; r++) {
-    for (let q = -1; q <= cols; q++) {
+  console.log(`Grille : ${cols} colonnes × ${rows} lignes (taille = ${size})`);
+
+  for (let r = -5; r <= rows; r++) {
+    for (let q = -5; q <= cols; q++) {
       const coords = hexPolygonLatLng(q, r, size);
       L.polygon(coords, {
-        color: 'rgba(0,0,0,0.2)',
+        color: '#ff0000', // rouge vif pour test
         weight: 1,
         fill: false,
         interactive: false
