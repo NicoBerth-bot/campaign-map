@@ -6,6 +6,36 @@ const hexSizeInput = document.getElementById('hexSize');
 const assets = ['assets/map.jpg'];
 assets.forEach(a=>{ const o=document.createElement('option'); o.value=a; o.textContent=a; assetSelect.appendChild(o); });
 
+async function loadMapsList() {
+  try {
+    const response = await fetch('assets/assets.json');
+    if (!response.ok) throw new Error("Impossible de charger assets.json");
+    const data = await response.json();
+    const select = document.getElementById('mapSelector');
+    select.innerHTML = ""; // vider la liste si rechargée
+
+    data.maps.forEach(map => {
+      const option = document.createElement('option');
+      option.value = `assets/${map.file}`;
+      option.textContent = map.name;
+      select.appendChild(option);
+    });
+  } catch (e) {
+    console.error("Erreur lors du chargement des cartes :", e);
+  }
+}
+
+function loadSelectedMap() {
+  const select = document.getElementById('mapSelector');
+  const selectedMap = select.value;
+  if (!selectedMap) return;
+  initMap(selectedMap); // ta fonction actuelle qui charge la carte
+}
+
+// Appeler cette fonction au démarrage
+document.addEventListener('DOMContentLoaded', loadMapsList);
+
+
 let map, imgLayer, gridLayer, mapSize, removedHexes=new Set(), addedHexes=new Set();
 
 function currentHexSize(){ return parseFloat(hexSizeInput.value||100); }
