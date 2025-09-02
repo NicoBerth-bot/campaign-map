@@ -123,15 +123,25 @@ function drawGrid() {
 }
 
 function hexPolygonLatLng(q, r, size) {
-  const center = Hex.center(q, r, size);
-  const angles = [0, 60, 120, 180, 240, 300].map(a => a - 30); // pointy-top
-  return angles.map(angle => {
-    const rad = Math.PI / 180 * angle;
-    const x = center[1] + size * Math.cos(rad);
-    const y = center[0] + size * Math.sin(rad);
-    return [y, x];
-  });
+  // Flat-top hex coordinates
+  const width = size * 2;
+  const height = Math.sqrt(3) * size;
+
+  const x = q * (3/4 * width);
+  const y = r * height + (q % 2) * (height / 2);
+
+  const center = L.latLng(y, x);
+
+  const points = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.PI / 180 * (60 * i); // flat-top
+    const px = center.lng + size * Math.cos(angle);
+    const py = center.lat + size * Math.sin(angle);
+    points.push([py, px]);
+  }
+  return points;
 }
+
 
 // --- Armies ---
 function renderArmies() {
