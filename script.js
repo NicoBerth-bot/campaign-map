@@ -113,11 +113,13 @@ function drawGrid() {
     for (let q = -5; q <= cols; q++) {
       const coords = hexPolygonLatLng(q, r, size);
       L.polygon(coords, {
-        color: '#ff0000', // rouge vif pour test
-        weight: 1,
-        fill: false,
-        interactive: false
-      }).addTo(gridLayer);
+       color: 'white',   // blanche
+       weight: 1,
+       opacity: 0.8,     // légère transparence
+      fill: false,
+      interactive: false
+  }).addTo(gridLayer);
+
     }
   }
 }
