@@ -1,0 +1,23 @@
+
+html, body, #map { height: 100%; margin: 0; }
+.control-panel {
+  position: absolute; top: 12px; left: 12px; z-index: 1000;
+  background: rgba(255,255,255,.9); padding: 10px; border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.15); max-width: 320px; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+.control-panel h2 { font-size: 16px; margin: 0 0 8px; }
+.control-panel label { display:block; font-size: 12px; margin-top: 6px; }
+.control-panel input[type="text"] { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid #ddd; }
+.control-panel input[type="number"] { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid #ddd; }
+.control-panel input[type="color"] { width: 100%; padding: 2px; border-radius: 8px; border: 1px solid #ddd; }
+.control-panel button { margin-top: 8px; padding: 8px 10px; border: 0; border-radius: 10px; cursor: pointer; }
+.small { font-size: 11px; color: #555; }
+.army-list { max-height: 160px; overflow: auto; margin-top: 8px; border: 1px dashed #ddd; padding: 6px; border-radius: 8px; }
+.army-list div { display:flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+.badge { display:inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 6px; border:1px solid #333; }
+.toggle-row { display:flex; gap: 8px; align-items:center; margin-top: 6px; }
+.gridLabel { position:absolute; bottom:10px; left:10px; z-index:1000; background: rgba(0,0,0,.5); color:#fff; padding:4px 8px; border-radius:8px; font-size:12px; }
+footer.footer {
+  position: absolute; right: 12px; bottom: 12px; z-index:1000;
+  background: rgba(255,255,255,.9); padding: 6px 10px; border-radius: 10px; font-size: 12px;
+}
