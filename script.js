@@ -58,10 +58,11 @@ async function initMap(imgPath) {
   const img = await loadImage(imgPath);
   const w = img.naturalWidth, h = img.naturalHeight;
   mapSize = { w, h };
-  const bounds = [[0, 0], [h, w]];
+  const bounds = L.latLngBounds([[0, 0], [h, w]]);
   imageLayer = L.imageOverlay(imgPath, bounds).addTo(map);
   map.fitBounds(bounds);
   map.setMaxBounds(bounds.pad(0.1));
+
 
   gridLayer = L.layerGroup().addTo(map);
 
