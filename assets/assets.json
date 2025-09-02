@@ -1,0 +1,13 @@
+{
+  "maps": [
+    { "file": "vieux_monde_5000x5000px.jpg", "name": "Vieux Monde" },
+    { "file": "bretonnie.jpg", "name": "Royaume de Bretonnie" },
+    { "file": "orcs_et_gobelins.jpg", "name": "Orcs et Gobelins dans les Terres Arides" },
+    { "file": "bastions-elfes.jpg", "name": "Hauts-Elfes dans le Vieux Monde" },
+    { "file": "hommes-betes.jpg", "name": "Hommes-Bêtes dans le Vieux Monde" },
+    { "file": "athel-loren.jpg", "name": "Athel Loren" },
+    { "file": "khermri.jpg", "name": "Terre des Morts de Nehekhara" },
+    { "file": "nains.jpg", "name": "Forteresses Naines" },
+    { "file": "empire.jpg", "name": "L'Empire des Hommes" }
+  ]
+}
