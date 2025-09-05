@@ -1,13 +1,30 @@
-// script-game.js – Mode Campagne (diagnostic)
-// Donne des erreurs explicites, filtre les données de grille, et loggue les étapes.
+// script-game.js – Mode Campagne (robuste + diagnostic)
 
 (() => {
   'use strict';
 
+  // --- Fallback : charger Leaflet si absent (sécurité) ---
+  async function ensureLeafletLoaded() {
+    if (window.L) return;
+    // CSS
+    const css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+    // JS
+    await new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('Leaflet JS load failed'));
+      document.head.appendChild(s);
+    });
+  }
+
   // ---- UI ----
   const importInput     = document.getElementById('importProject');
-  const toggleGridEl    = document.getElementById('toggleGrid');
-  const toggleSnapEl    = document.getElementById('toggleSnap');
+  const toggleGridEl    = document.getElementById('toggleGrid') || { checked: true, addEventListener(){ } };
+  const toggleSnapEl    = document.getElementById('toggleSnap') || { checked: true, addEventListener(){ } };
   const addArmyBtn      = document.getElementById('addArmyBtn');
   const armyNameEl      = document.getElementById('armyName');
   const armyColorEl     = document.getElementById('armyColor');
@@ -18,11 +35,11 @@
   // ---- State ----
   let map = null, imgLayer = null, gridLayer = null, armyLayer = null;
   let mapSize = null;
-  let project = null;
+  let project = null;           // {map, hexSize, removedHexes, addedHexes, armies}
   let removedHexes = new Set(); // "q,r"
   let addedHexes   = new Set(); // "q,r"
   let armies       = [];        // [{id, name, color, q, r}]
-  let addMode      = null;      // {name,color}
+  let addMode      = null;      // {name,color} quand "Ajouter une armée" est actif
 
   // ---- Utils ----
   const log = (...a) => console.info('[BDS:campaign]', ...a);
@@ -83,13 +100,15 @@
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => resolve(img);
-      img.onerror = (e) => reject(new Error('Image load error for ' + src));
+      img.onerror = () => reject(new Error('Image load error for ' + src));
       img.src = src;
     });
   }
 
   async function initMap(imgPath) {
+    if (!window.L) throw new Error("Leaflet (L) n'est pas chargé.");
     log('initMap ->', imgPath);
+
     if (map) map.remove();
     map = L.map('map', { crs: L.CRS.Simple, minZoom: -5 });
 
@@ -104,62 +123,43 @@
     gridLayer = L.layerGroup().addTo(map);
     armyLayer = L.layerGroup().addTo(map);
 
-    // Placer une armée si addMode actif
+    // Clic carte : placer une armée si "addMode" actif
     map.on('click', (e) => {
       if (!addMode || !project) return;
       const size = project.hexSize || 100;
       const { q, r } = pixelToHex_axial(e.latlng.lng, e.latlng.lat, size);
       const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random());
-
-      const army = {
+      armies.push({
         id,
         name: addMode.name || 'Armée',
         color: addMode.color || '#d22a2a',
         q, r
-      };
-      armies.push(army);
+      });
       addMode = null;
       renderArmies();
       updateArmyList();
     });
   }
 
-  // ---- Grid ----
+  // ---- Grid (affichage uniquement en campagne) ----
   function drawGrid() {
     if (!map || !mapSize || !project) return;
     gridLayer.clearLayers();
-    if (!toggleGridEl.checked) return;
+    if (!toggleGridEl || !toggleGridEl.checked) return;
 
     const size = project.hexSize || 100;
 
-    try {
-      const qMin = Math.floor(-size / (1.5 * size));
-      const qMax = Math.ceil((mapSize.w + size) / (1.5 * size));
+    const qMin = Math.floor(-size / (1.5 * size));
+    const qMax = Math.ceil((mapSize.w + size) / (1.5 * size));
 
-      for (let q = qMin; q <= qMax; q++) {
-        const rMin = Math.floor((-size) / (Math.sqrt(3)*size) - q/2);
-        const rMax = Math.ceil((mapSize.h + size) / (Math.sqrt(3)*size) - q/2);
+    for (let q = qMin; q <= qMax; q++) {
+      const rMin = Math.floor((-size) / (Math.sqrt(3)*size) - q/2);
+      const rMax = Math.ceil((mapSize.h + size) / (Math.sqrt(3)*size) - q/2);
 
-        for (let r = rMin; r <= rMax; r++) {
-          const key = `${q},${r}`;
-          if (removedHexes.has(key) && !addedHexes.has(key)) continue;
+      for (let r = rMin; r <= rMax; r++) {
+        const key = `${q},${r}`;
+        if (removedHexes.has(key) && !addedHexes.has(key)) continue;
 
-          const coords = hexPolygonLatLng(q, r, size);
-          L.polygon(coords, {
-            color: 'white',
-            weight: 1,
-            opacity: 0.95,
-            fill: true,
-            fillOpacity: 0.04,
-            interactive: false
-          }).addTo(gridLayer);
-        }
-      }
-
-      // Ajouts hors base
-      addedHexes.forEach(k => {
-        const [q, r] = k.split(',').map(Number);
-        if (!Number.isFinite(q) || !Number.isFinite(r)) return;
         const coords = hexPolygonLatLng(q, r, size);
         L.polygon(coords, {
           color: 'white',
@@ -169,16 +169,26 @@
           fillOpacity: 0.04,
           interactive: false
         }).addTo(gridLayer);
-      });
-
-      log('drawGrid -> OK');
-    } catch (e) {
-      err('drawGrid failed:', e);
-      alert('Erreur pendant l’affichage de la grille (voir Console).');
+      }
     }
+
+    // Ajouts hors base éventuels
+    addedHexes.forEach(k => {
+      const [q, r] = k.split(',').map(Number);
+      if (!Number.isFinite(q) || !Number.isFinite(r)) return;
+      const coords = hexPolygonLatLng(q, r, size);
+      L.polygon(coords, {
+        color: 'white',
+        weight: 1,
+        opacity: 0.95,
+        fill: true,
+        fillOpacity: 0.04,
+        interactive: false
+      }).addTo(gridLayer);
+    });
   }
 
-  // ---- Armies ----
+  // ---- Armées ----
   function renderArmies() {
     if (!armyLayer) return;
     armyLayer.clearLayers();
@@ -217,6 +227,7 @@
         updateArmyList();
       });
 
+      // Ctrl+clic sur un pion = suppression rapide
       marker.on('click', (e) => {
         if (e.originalEvent && e.originalEvent.ctrlKey) {
           armies = armies.filter(x => x.id !== a.id);
@@ -256,21 +267,14 @@
     if (p.armies && !Array.isArray(p.armies)) errs.push("'armies' doit être un tableau.");
     return errs;
   }
-
   function coercePairArray(arr, label) {
     const out = [];
     if (!Array.isArray(arr)) return out;
     for (let i = 0; i < arr.length; i++) {
       const el = arr[i];
-      if (!Array.isArray(el) || el.length !== 2) {
-        warn(`${label}[${i}] ignoré (pas une paire)`, el);
-        continue;
-      }
+      if (!Array.isArray(el) || el.length !== 2) { warn(`${label}[${i}] ignoré (pas une paire)`, el); continue; }
       const q = Number(el[0]), r = Number(el[1]);
-      if (!Number.isFinite(q) || !Number.isFinite(r)) {
-        warn(`${label}[${i}] ignoré (non numérique)`, el);
-        continue;
-      }
+      if (!Number.isFinite(q) || !Number.isFinite(r)) { warn(`${label}[${i}] ignoré (non numérique)`, el); continue; }
       out.push([q, r]);
     }
     return out;
@@ -305,14 +309,21 @@
             return;
           }
 
-          // Coercion/filtrage des paires
+          // Nettoyage des paires
           obj.removedHexes = coercePairArray(obj.removedHexes ?? [], 'removedHexes');
           obj.addedHexes   = coercePairArray(obj.addedHexes   ?? [], 'addedHexes');
 
-          await loadCampaign(obj);
+          // Charger la campagne : assure Leaflet, init carte, grille, armées
+          try {
+            await ensureLeafletLoaded();
+            await loadCampaign(obj);
+          } catch (e) {
+            err(e);
+            alert("Échec de chargement (voir Console).");
+          }
         } catch (e) {
           err(e);
-          alert("Échec de chargement (voir Console).");
+          alert("Échec de lecture du fichier (voir Console).");
         }
       };
       reader.readAsText(file);
@@ -330,11 +341,10 @@
       armies:       Array.isArray(p.armies)       ? p.armies       : []
     };
 
-    // Sets (sécurisés)
     removedHexes = new Set(project.removedHexes.map(([q,r]) => `${q},${r}`));
     addedHexes   = new Set(project.addedHexes.map(([q,r])     => `${q},${r}`));
 
-    // Vérifier l'image par HEAD (si possible)
+    // Vérifier l'image via HEAD (si possible)
     try {
       const head = await fetch(project.map, { method: 'HEAD' });
       if (!head.ok) {
@@ -343,7 +353,7 @@
         return;
       }
     } catch (e) {
-      // Certains environnements bloquent HEAD → on ignore, initMap testera de toutes façons
+      // HEAD parfois bloqué : initMap validera le vrai chargement
       warn('HEAD check échoué, on tente initMap quand même…', e);
     }
 
@@ -356,17 +366,35 @@
       r: Number.isFinite(a.r) ? a.r : 0
     }));
 
-    // Initialiser la carte puis dessiner
+    // Étapes détaillées avec messages clairs
     try {
       await initMap(project.map);
+      console.info('[BDS] initMap OK. Image size =', mapSize);
+    } catch (e) {
+      console.error('[BDS] initMap error:', e);
+      alert('initMap a échoué : ' + (e?.message || e));
+      return;
+    }
+
+    try {
       drawGrid();
+      console.info('[BDS] drawGrid OK.');
+    } catch (e) {
+      console.error('[BDS] drawGrid error:', e);
+      alert('drawGrid a échoué : ' + (e?.message || e));
+      return;
+    }
+
+    try {
       renderArmies();
       updateArmyList();
-      log('loadCampaign OK');
+      console.info('[BDS] renderArmies OK.');
     } catch (e) {
-      err('initMap/draw failed:', e);
-      alert(`Erreur pendant l’initialisation de la carte/grille (voir Console).`);
+      console.error('[BDS] renderArmies error:', e);
+      alert('renderArmies a échoué : ' + (e?.message || e));
     }
+
+    log('loadCampaign OK');
   }
 
   function exportState() {
@@ -410,7 +438,7 @@
     updateArmyList();
   });
 
-  // Mémoriser l’état du snap
+  // Snap : mémorisation localStorage
   toggleSnapEl?.addEventListener('change', () => {
     try { localStorage.setItem('bds_snap', toggleSnapEl.checked ? '1' : '0'); } catch(e){}
   });
