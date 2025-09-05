@@ -5,6 +5,7 @@ const exportProjectBtn = document.getElementById('exportProject');
 const hexSizeInput = document.getElementById('hexSize');
 const assets = ['assets/map.jpg'];
 assets.forEach(a=>{ const o=document.createElement('option'); o.value=a; o.textContent=a; assetSelect.appendChild(o); });
+let currentMapPath = null;
 
 async function loadMapsList() {
   try {
@@ -27,9 +28,10 @@ async function loadMapsList() {
 
 function loadSelectedMap() {
   const select = document.getElementById('mapSelector');
-  const selectedMap = select.value;
-  if (!selectedMap) return;
-  initMap(selectedMap); // ta fonction actuelle qui charge la carte
+  currentMapPath = select.value; // mémorise la carte choisie
+  if (!currentMapPath) return;
+  initMap(currentMapPath).then(() => drawGrid());
+
 }
 
 // Appeler cette fonction au démarrage
