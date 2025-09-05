@@ -5,64 +5,51 @@
   <title>Mode Campagne – Bain de Sang</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Leaflet CSS + JS (CDN officiels) -->
-  <link
-   npkg.com/leaflet@1.9.4/dist/leaflet.css
+  <!-- Leaflet CSS + JS : IMPORTANT d'avoir les deux -->
+  https://unpkg.com/leaflet@1.9.4/dist/leaflet.css
   https://unpkg.com/leaflet@1.9.4/dist/leaflet.js
 
-  <!-- Ton CSS global (facultatif) -->
+  <!-- (Optionnel) ton CSS global -->
   <link rel="stylesheet" href="style.css" />
 
-  <!-- Styles spécifiques à la page -->
+  <!-- Styles spécifiques à la page (tu peux déplacer dans style.css si tu veux) -->
   <style>
     :root {
-      --bg: #0f172a;     --bg-2: #0b1220;
-      --txt: #e2e8f0;    --muted: #94a3b8;
-      --panel: #111827;  --border: #1f2937;
-      --btn: #1e293b;    --btn-hover: #0b1220;
+      --bg:#0f172a; --bg-2:#0b1220;
+      --txt:#e2e8f0; --muted:#94a3b8;
+      --panel:#111827; --border:#1f2937;
+      --btn:#1e293b; --btn-hover:#0b1220;
     }
-    html, body { height: 100%; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--txt); }
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt)}
 
-    /* Barre de commandes */
-    #controls {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: .6rem 1rem; padding: .75rem 1rem;
-      background: var(--bg); border-bottom: 1px solid var(--border);
-      align-items: center;
+    #controls{
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      gap:.6rem 1rem;padding:.75rem 1rem;background:var(--bg);border-bottom:1px solid var(--border);
+      align-items:center
     }
-    #controls label { display: grid; gap: .35rem; font-size: .95rem; }
-    #controls input[type="text"],
-    #controls input[type="color"] {
-      background: var(--panel); color: var(--txt);
-      border: 1px solid var(--border);
-      padding: .45rem .55rem; border-radius: .375rem;
+    #controls label{display:grid;gap:.35rem;font-size:.95rem}
+    #controls input[type="text"],#controls input[type="color"]{
+      background:var(--panel);color:var(--txt);border:1px solid var(--border);padding:.45rem .55rem;border-radius:.375rem
     }
-    #controls input[type="file"] { color: var(--muted); }
-    #controls input[type="checkbox"] { accent-color: #f59e0b; }
-    #controls button {
-      padding: .55rem .8rem; border: 1px solid var(--border); border-radius: .375rem;
-      background: var(--btn); color: var(--txt); cursor: pointer;
+    #controls input[type="file"]{color:var(--muted)}
+    #controls input[type="checkbox"]{accent-color:#f59e0b}
+    #controls button{
+      padding:.55rem .8rem;border:1px solid var(--border);border-radius:.375rem;background:var(--btn);color:var(--txt);cursor:pointer
     }
-    #controls button:hover { background: var(--btn-hover); }
+    #controls button:hover{background:var(--btn-hover)}
 
-    /* Carte */
-    #map { width: 100%; height: calc(100vh - 180px); }
+    #map{width:100%;height:calc(100vh - 180px)}
 
-    /* Liste d’armées */
-    #sidebar {
-      padding: .5rem 1rem; background: var(--bg-2); color: var(--txt);
-      border-top: 1px solid var(--border);
-      display: grid; grid-template-columns: 1fr; gap: .5rem;
+    #sidebar{
+      padding:.5rem 1rem;background:var(--bg-2);color:var(--txt);border-top:1px solid var(--border);
+      display:grid;grid-template-columns:1fr;gap:.5rem
     }
-    #armyList > div {
-      display:flex; align-items:center; gap:.5rem;
-      padding:.35rem .5rem; background:#111827;
-      border:1px solid #1f2937; border-radius:.375rem;
+    #armyList>div{
+      display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;background:#111827;border:1px solid #1f2937;border-radius:.375rem
     }
-    .badge { display:inline-block; width:12px; height:12px; border-radius:999px; border:2px solid #000; }
-    .muted { opacity:.7; font-size:.9rem; }
+    .badge{display:inline-block;width:12px;height:12px;border-radius:999px;border:2px solid #000}
+    .muted{opacity:.7;font-size:.9rem}
   </style>
 </head>
 <body>
@@ -108,25 +95,8 @@
     <div id="armyList"></div>
   </div>
 
-  <!-- Script campagne -->
-  <script src="script-game.js"></script>
-
-  <!-- Fallback local si le CDN échoue (optionnel) -->
-  <script>
-    window.addEventListener('error', function(e) {
-      // Si Leaflet n’est pas dispo, charger les fichiers locaux
-      if (!window.L) {
-        const l = document.createElement('link');
-        l.rel = 'stylesheet';
-        l.href = 'vendor/leaflet/leaflet.css'; // place les fichiers localement si tu veux le fallback
-        document.head.appendChild(l);
-
-        const s = document.createElement('script');
-        s.src = 'vendor/leaflet/leaflet.js';
-        document.head.appendChild(s);
-      }
-    }, { once: true });
-  </script>
+  <!-- Script campagne (après Leaflet, via defer) -->
+  <script src="script-game.js" defer></script>
 
   <noscript>
     <p style="padding:1rem;color:#fca5a5;background:#111827;border-top:1px solid #1f2937;">
