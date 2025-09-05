@@ -171,33 +171,26 @@ function drawGrid() {
   gridLayer.clearLayers();
 
   const size = currentHexSize();
-  const margin = 2; // colonnes/rows supplémentaires pour sécurité
+  const margin = 0; // on ne rajoute plus de hex inutiles
 
-  // Calcul de q range basé sur largeur de l'image :
-  // centers x = 1.5 * size * q
-  // condition: center.x - size <= mapWidth && center.x + size >= 0
-  const qMin = Math.floor(( - size ) / (1.5 * size)) - margin;
-  const qMax = Math.ceil((mapSize.w + size) / (1.5 * size)) + margin;
+  // bornes q : en flat-top, centre.x = 1.5 * size * q
+  const qMin = Math.floor(-size / (1.5 * size));
+  const qMax = Math.ceil((mapSize.w + size) / (1.5 * size));
 
-  // Pour chaque q, calculer rMin/rMax nécessaires pour couvrir la hauteur
   for (let q = qMin; q <= qMax; q++) {
-    // center.y = sqrt(3)*size*(r + q/2)
-    // conditions: center.y - size <= mapHeight && center.y + size >= 0
-    // => r range:
-    const rMin = Math.floor(( - size ) / (Math.sqrt(3) * size) - q / 2) - margin;
+    // bornes r spécifiques à chaque colonne
+    const rMin = Math.floor((-size) / (Math.sqrt(3) * size) - q / 2) - margin;
     const rMax = Math.ceil((mapSize.h + size) / (Math.sqrt(3) * size) - q / 2) + margin;
 
     for (let r = rMin; r <= rMax; r++) {
       const key = `${q},${r}`;
-      // si hex supprimé (et pas explicitement ré-ajouté), on ne le dessine pas
       if (removedHexes.has(key) && !addedHexes.has(key)) continue;
 
-      // dessiner hex normal ou ajouté explicitement
       const coords = hexPolygonLatLng(q, r, size);
       const isAdded = addedHexes.has(key);
 
       const poly = L.polygon(coords, {
-        color: isAdded ? '#00a86b' : 'white', // added = greenish, base = white
+        color: isAdded ? '#00a86b' : 'white',
         weight: 1,
         opacity: 0.95,
         fill: true,
@@ -207,25 +200,46 @@ function drawGrid() {
 
       poly.options.hexCoords = { q, r };
 
-      // CLICK LEFT: comportement
-      // - si hex était dans addedHexes => le clic supprime l'ajout (supprimer hex ajouté)
-      // - sinon toggle removedHexes (supprime / réactive)
-      poly.on('click', (e) => {
-        // empêcher propagation et comportement par défaut
-        if (e.originalEvent) e.originalEvent.stopPropagation();
-
-        const k = key;
-        if (addedHexes.has(k)) {
-          // suppression définitive de l'hex ajouté (on "annule" l'ajout)
-          addedHexes.delete(k);
-          removedHexes.delete(k); // on nettoie au cas où
+      poly.on('click', () => {
+        if (addedHexes.has(key)) {
+          addedHexes.delete(key);
+          removedHexes.delete(key);
         } else {
-          // toggle suppression sur la base
-          if (removedHexes.has(k)) removedHexes.delete(k);
-          else removedHexes.add(k);
+          if (removedHexes.has(key)) removedHexes.delete(key);
+          else removedHexes.add(key);
         }
         drawGrid();
       });
+
+      poly.on('contextmenu', (e) => {
+        if (e.originalEvent) e.originalEvent.preventDefault();
+        addedHexes.add(key);
+        removedHexes.delete(key);
+        drawGrid();
+      });
+    }
+  }
+
+  // On redessine les hex ajoutés hors zone si besoin
+  addedHexes.forEach(k => {
+    const [q, r] = k.split(',').map(Number);
+    const coords = hexPolygonLatLng(q, r, size);
+    const poly = L.polygon(coords, {
+      color: '#00a86b',
+      weight: 1,
+      opacity: 0.95,
+      fill: true,
+      fillOpacity: 0.10,
+      interactive: true
+    }).addTo(gridLayer);
+    poly.on('click', () => {
+      addedHexes.delete(k);
+      removedHexes.delete(k);
+      drawGrid();
+    });
+  });
+}
+
 
       // RIGHT CLICK on polygon = mark as added (handy)
       poly.on('contextmenu', (e) => {
