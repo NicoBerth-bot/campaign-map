@@ -1,8 +1,5 @@
-// script-game.js – Mode Campagne (chargement projet + grille + armées)
-// - Import project.json (de l’éditeur)
-// - Affiche la carte + grille flat-top cohérente
-// - Ajouter/Déplacer des armées (drag & drop), snap optionnel
-// - Export de l’état complet (incluant les armées)
+// script-game.js – Mode Campagne (diagnostic)
+// Donne des erreurs explicites, filtre les données de grille, et loggue les étapes.
 
 (() => {
   'use strict';
@@ -21,11 +18,23 @@
   // ---- State ----
   let map = null, imgLayer = null, gridLayer = null, armyLayer = null;
   let mapSize = null;
-  let project = null;           // le projet chargé tel quel (map, hexSize, removedHexes, addedHexes, armies?)
+  let project = null;
   let removedHexes = new Set(); // "q,r"
   let addedHexes   = new Set(); // "q,r"
   let armies       = [];        // [{id, name, color, q, r}]
-  let addMode      = null;      // {name,color} quand on clique "Ajouter une armée"
+  let addMode      = null;      // {name,color}
+
+  // ---- Utils ----
+  const log = (...a) => console.info('[BDS:campaign]', ...a);
+  const warn = (...a) => console.warn('[BDS:campaign]', ...a);
+  const err  = (...a) => console.error('[BDS:campaign]', ...a);
+
+  function escapeHtml(s) {
+    return String(s ?? '')
+      .replaceAll('&','&amp;').replaceAll('<','&lt;')
+      .replaceAll('>','&gt;').replaceAll('"','&quot;')
+      .replaceAll("'",'&#039;');
+  }
 
   // ---- Hex math (flat-top, axial) ----
   function axial_to_pixel(q, r, size) {
@@ -57,14 +66,14 @@
   }
   function hexCenterLatLng(q, r, size) {
     const c = axial_to_pixel(q, r, size);
-    return [c.y, c.x]; // Leaflet: [lat(y), lng(x)]
+    return [c.y, c.x];
   }
   function hexPolygonLatLng(q, r, size) {
     const c = axial_to_pixel(q, r, size);
     const pts = [];
     for (let i = 0; i < 6; i++) {
-      const angle = Math.PI/180 * (60 * i); // flat-top
-      pts.push([c.y + size * Math.sin(angle), c.x + size * Math.cos(angle)]);
+      const ang = Math.PI/180 * (60 * i);
+      pts.push([c.y + size * Math.sin(ang), c.x + size * Math.cos(ang)]);
     }
     return pts;
   }
@@ -74,12 +83,13 @@
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.onload = () => resolve(img);
-      img.onerror = reject;
+      img.onerror = (e) => reject(new Error('Image load error for ' + src));
       img.src = src;
     });
   }
 
   async function initMap(imgPath) {
+    log('initMap ->', imgPath);
     if (map) map.remove();
     map = L.map('map', { crs: L.CRS.Simple, minZoom: -5 });
 
@@ -94,7 +104,7 @@
     gridLayer = L.layerGroup().addTo(map);
     armyLayer = L.layerGroup().addTo(map);
 
-    // Clic sur la carte pour placer une armée si "addMode" est actif
+    // Placer une armée si addMode actif
     map.on('click', (e) => {
       if (!addMode || !project) return;
       const size = project.hexSize || 100;
@@ -122,19 +132,34 @@
 
     const size = project.hexSize || 100;
 
-    // Bornes q : centre.x = 1.5*size*q
-    const qMin = Math.floor(-size / (1.5 * size));
-    const qMax = Math.ceil((mapSize.w + size) / (1.5 * size));
+    try {
+      const qMin = Math.floor(-size / (1.5 * size));
+      const qMax = Math.ceil((mapSize.w + size) / (1.5 * size));
 
-    for (let q = qMin; q <= qMax; q++) {
-      // rMin/rMax dépendent de q : centre.y = √3*size*(r + q/2)
-      const rMin = Math.floor((-size) / (Math.sqrt(3)*size) - q/2);
-      const rMax = Math.ceil((mapSize.h + size) / (Math.sqrt(3)*size) - q/2);
+      for (let q = qMin; q <= qMax; q++) {
+        const rMin = Math.floor((-size) / (Math.sqrt(3)*size) - q/2);
+        const rMax = Math.ceil((mapSize.h + size) / (Math.sqrt(3)*size) - q/2);
 
-      for (let r = rMin; r <= rMax; r++) {
-        const key = `${q},${r}`;
-        if (removedHexes.has(key) && !addedHexes.has(key)) continue;
+        for (let r = rMin; r <= rMax; r++) {
+          const key = `${q},${r}`;
+          if (removedHexes.has(key) && !addedHexes.has(key)) continue;
 
+          const coords = hexPolygonLatLng(q, r, size);
+          L.polygon(coords, {
+            color: 'white',
+            weight: 1,
+            opacity: 0.95,
+            fill: true,
+            fillOpacity: 0.04,
+            interactive: false
+          }).addTo(gridLayer);
+        }
+      }
+
+      // Ajouts hors base
+      addedHexes.forEach(k => {
+        const [q, r] = k.split(',').map(Number);
+        if (!Number.isFinite(q) || !Number.isFinite(r)) return;
         const coords = hexPolygonLatLng(q, r, size);
         L.polygon(coords, {
           color: 'white',
@@ -142,24 +167,15 @@
           opacity: 0.95,
           fill: true,
           fillOpacity: 0.04,
-          interactive: false // en mode campagne, la grille n’est pas éditable
+          interactive: false
         }).addTo(gridLayer);
-      }
-    }
+      });
 
-    // Hex ajoutés “hors base” éventuels
-    addedHexes.forEach(k => {
-      const [q, r] = k.split(',').map(Number);
-      const coords = hexPolygonLatLng(q, r, size);
-      L.polygon(coords, {
-        color: 'white',
-        weight: 1,
-        opacity: 0.95,
-        fill: true,
-        fillOpacity: 0.04,
-        interactive: false
-      }).addTo(gridLayer);
-    });
+      log('drawGrid -> OK');
+    } catch (e) {
+      err('drawGrid failed:', e);
+      alert('Erreur pendant l’affichage de la grille (voir Console).');
+    }
   }
 
   // ---- Armies ----
@@ -171,7 +187,6 @@
     const snap  = !!toggleSnapEl.checked;
 
     armies.forEach(a => {
-      // (optionnel) re-snap au rendu si nécessaire (maintient cohérence après changement hexSize)
       if (snap) {
         const center = hexCenterLatLng(a.q, a.r, size);
         a._latlng = { lat: center[0], lng: center[1] };
@@ -197,12 +212,11 @@
         } else {
           const hex = pixelToHex_axial(pos.lng, pos.lat, size);
           a.q = hex.q; a.r = hex.r;
-          a._latlng = marker.getLatLng(); // conserve latlng libre si pas de snap
+          a._latlng = marker.getLatLng();
         }
         updateArmyList();
       });
 
-      // Option: Ctrl+click pour supprimer rapidement une armée
       marker.on('click', (e) => {
         if (e.originalEvent && e.originalEvent.ctrlKey) {
           armies = armies.filter(x => x.id !== a.id);
@@ -233,34 +247,107 @@
     });
   }
 
-  function escapeHtml(s) {
-    return String(s ?? '')
-      .replaceAll('&','&amp;')
-      .replaceAll('<','&lt;')
-      .replaceAll('>','&gt;')
-      .replaceAll('"','&quot;')
-      .replaceAll("'",'&#039;');
+  // ---- Validation & coercion ----
+  function validateProjectSchema(p) {
+    const errs = [];
+    if (!p || typeof p !== 'object') errs.push("Le contenu n'est pas un objet JSON.");
+    if (!p.map || typeof p.map !== 'string') errs.push("Champ 'map' manquant ou non texte.");
+    if (!(Number(p.hexSize) > 0)) errs.push("Champ 'hexSize' manquant ou non numérique (>0).");
+    if (p.armies && !Array.isArray(p.armies)) errs.push("'armies' doit être un tableau.");
+    return errs;
+  }
+
+  function coercePairArray(arr, label) {
+    const out = [];
+    if (!Array.isArray(arr)) return out;
+    for (let i = 0; i < arr.length; i++) {
+      const el = arr[i];
+      if (!Array.isArray(el) || el.length !== 2) {
+        warn(`${label}[${i}] ignoré (pas une paire)`, el);
+        continue;
+      }
+      const q = Number(el[0]), r = Number(el[1]);
+      if (!Number.isFinite(q) || !Number.isFinite(r)) {
+        warn(`${label}[${i}] ignoré (non numérique)`, el);
+        continue;
+      }
+      out.push([q, r]);
+    }
+    return out;
   }
 
   // ---- Import / Export ----
+  if (importInput) {
+    importInput.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          let text = String(reader.result || '').replace(/^\uFEFF/, '');
+          if (/^\s*<!doctype html>|^\s*<html/i.test(text)) {
+            alert("Le fichier importé est une page HTML (pas un JSON). Ré-exporte depuis l’éditeur.");
+            return;
+          }
+          let obj;
+          try {
+            obj = JSON.parse(text);
+          } catch (parseErr) {
+            err("JSON.parse a échoué :", parseErr);
+            alert("Erreur de syntaxe JSON (voir Console).");
+            return;
+          }
+
+          const errors = validateProjectSchema(obj);
+          if (errors.length) {
+            warn('Schéma invalide:', errors, obj);
+            alert("Projet JSON invalide :\n- " + errors.join("\n- "));
+            return;
+          }
+
+          // Coercion/filtrage des paires
+          obj.removedHexes = coercePairArray(obj.removedHexes ?? [], 'removedHexes');
+          obj.addedHexes   = coercePairArray(obj.addedHexes   ?? [], 'addedHexes');
+
+          await loadCampaign(obj);
+        } catch (e) {
+          err(e);
+          alert("Échec de chargement (voir Console).");
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
+
   async function loadCampaign(p) {
-    if (!p || !p.map) {
-      alert("Projet invalide : champ 'map' manquant.");
-      return;
-    }
+    log('loadCampaign start');
+
     project = {
       map: p.map,
-      hexSize: Number(p.hexSize) > 0 ? Number(p.hexSize) : 100,
+      hexSize: Number(p.hexSize) || 100,
       removedHexes: Array.isArray(p.removedHexes) ? p.removedHexes : [],
       addedHexes:   Array.isArray(p.addedHexes)   ? p.addedHexes   : [],
       armies:       Array.isArray(p.armies)       ? p.armies       : []
     };
 
-    // Synchronise les sets
+    // Sets (sécurisés)
     removedHexes = new Set(project.removedHexes.map(([q,r]) => `${q},${r}`));
     addedHexes   = new Set(project.addedHexes.map(([q,r])     => `${q},${r}`));
 
-    // Armées
+    // Vérifier l'image par HEAD (si possible)
+    try {
+      const head = await fetch(project.map, { method: 'HEAD' });
+      if (!head.ok) {
+        alert(`Image introuvable : ${project.map}\nHTTP ${head.status} ${head.statusText}`);
+        warn('HEAD failed:', head.status, head.statusText, 'for', project.map);
+        return;
+      }
+    } catch (e) {
+      // Certains environnements bloquent HEAD → on ignore, initMap testera de toutes façons
+      warn('HEAD check échoué, on tente initMap quand même…', e);
+    }
+
+    // Armées : normalisation
     armies = project.armies.map(a => ({
       id: a.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random())),
       name: a.name || 'Armée',
@@ -269,10 +356,17 @@
       r: Number.isFinite(a.r) ? a.r : 0
     }));
 
-    await initMap(project.map);
-    drawGrid();
-    renderArmies();
-    updateArmyList();
+    // Initialiser la carte puis dessiner
+    try {
+      await initMap(project.map);
+      drawGrid();
+      renderArmies();
+      updateArmyList();
+      log('loadCampaign OK');
+    } catch (e) {
+      err('initMap/draw failed:', e);
+      alert(`Erreur pendant l’initialisation de la carte/grille (voir Console).`);
+    }
   }
 
   function exportState() {
@@ -295,24 +389,6 @@
   }
 
   // ---- UI wiring ----
-  if (importInput) {
-    importInput.addEventListener('change', (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async () => {
-        try {
-          const p = JSON.parse(reader.result);
-          await loadCampaign(p);
-        } catch (err) {
-          console.error(err);
-          alert("Impossible de lire le JSON du projet.");
-        }
-      };
-      reader.readAsText(file);
-    });
-  }
-
   toggleGridEl?.addEventListener('change', drawGrid);
 
   addArmyBtn?.addEventListener('click', () => {
@@ -334,7 +410,7 @@
     updateArmyList();
   });
 
-  // (Optionnel) mémoriser l’état du snap en localStorage
+  // Mémoriser l’état du snap
   toggleSnapEl?.addEventListener('change', () => {
     try { localStorage.setItem('bds_snap', toggleSnapEl.checked ? '1' : '0'); } catch(e){}
   });
