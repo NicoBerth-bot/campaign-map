@@ -6,43 +6,81 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Leaflet -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9B0qIjJZRGuk2/Z9VM+rF2zVYbR1xTLwYQ="
-    crossorigin=""
-  ></script/
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+  https://unpkg.com/leaflet@1.9.4/dist/leaflet.css
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Zhref="style.css" />
+
+  <!-- Styles spécifiques à la page -->
+  <style>
+    :root {
+      --bg: #0f172a;     /* slate-900 */
+      --bg-2: #0b1220;
+      --txt: #e2e8f0;    /* slate-200 */
+      --muted: #94a3b8;
+      --panel: #111827;  /* gray-900 */
+      --border: #1f2937; /* gray-800 */
+      --btn: #1e293b;    /* slate-800 */
+      --btn-hover: #0b1220;
+    }
+    html, body { height: 100%; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--txt); }
+
+    /* Barre de commandes */
     #controls {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: .5rem 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: .6rem 1rem;
       padding: .75rem 1rem;
-      background: #0f172a; /* slate-900 */
-      color: #e2e8f0;      /* slate-200 */
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
       align-items: center;
     }
-    #controls label { display: flex; gap:.5rem; align-items: center; font-size: .95rem; }
-    #controls input[type="text"] { width: 100%; }
-    #controls button {
-      padding: .5rem .75rem; border: 1px solid #334155; border-radius: .375rem;
-      background: #1e293b; color: #e2e8f0; cursor: pointer;
+    #controls label { display: grid; gap: .35rem; font-size: .95rem; }
+    #controls input[type="text"],
+    #controls input[type="color"],
+    #controls input[type="file"],
+    #controls input[type="checkbox"] {
+      accent-color: #f59e0b;
     }
-    #controls button:hover { background:#0b1220; }
-    #map { width: 100%; height: calc(100vh - 160px); }
+    #controls input[type="text"],
+    #controls input[type="color"] {
+      background: var(--panel); color: var(--txt);
+      border: 1px solid var(--border);
+      padding: .45rem .55rem; border-radius: .375rem;
+    }
+    #controls input[type="file"] {
+      color: var(--muted);
+    }
+    #controls button {
+      padding: .55rem .8rem; border: 1px solid var(--border); border-radius: .375rem;
+      background: var(--btn); color: var(--txt); cursor: pointer;
+    }
+    #controls button:hover { background: var(--btn-hover); }
+
+    /* Carte */
+    #map { width: 100%; height: calc(100vh - 180px); }
+
+    /* Liste d’armées */
     #sidebar {
-      padding: .5rem 1rem; background:#0b1220; color:#cbd5e1; border-top: 1px solid #1f2937;
+      padding: .5rem 1rem; background: var(--bg-2); color: var(--txt); border-top: 1px solid var(--border);
       display: grid; grid-template-columns: 1fr; gap: .5rem;
     }
     #armyList > div {
-      display:flex; align-items:center; gap:.5rem; padding:.35rem .5rem; background:#111827; border:1px solid #1f2937; border-radius:.375rem;
+      display:flex; align-items:center; gap:.5rem;
+      padding:.35rem .5rem; background:#111827;
+      border:1px solid #1f2937; border-radius:.375rem;
     }
-    .badge { display:inline-block; width:12px; height:12px; border-radius:999px; border:2px solid #000; }
+    .badge {
+      display:inline-block; width:12px; height:12px;
+      border-radius:999px; border:2px solid #000;
+    }
     .muted { opacity:.7; font-size:.9rem; }
   </style>
 </head>
 <body>
 
+  <!-- Commandes campagne -->
   <div id="controls">
     <label>
       Importer un projet (JSON)
@@ -74,13 +112,22 @@
     <button id="clearArmiesBtn" title="Supprime toutes les armées">Vider les armées</button>
   </div>
 
-  <div id="map"></div>
+  <!-- Carte -->
+  <div id="map" aria-label="Zone de carte Leaflet"></div>
 
+  <!-- Liste d’armées -->
   <div id="sidebar">
     <div class="muted">Armées :</div>
     <div id="armyList"></div>
   </div>
 
+  <!-- Script campagne -->
   <script src="script-game.js"></script>
+
+  <noscript>
+    <p style="padding:1rem;color:#fca5a5;background:#111827;border-top:1px solid #1f2937;">
+      JavaScript est requis pour utiliser le mode Campagne.
+    </p>
+  </noscript>
 </body>
 </html>
