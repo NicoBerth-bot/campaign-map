@@ -79,7 +79,16 @@ function drawGrid(){
   addedHexes.forEach(k=>{ const [q,r]=k.split(',').map(Number); const pts=hexPolygonLatLng(q,r,size); const poly=L.polygon(pts,{color:'white', weight:1, opacity:0.95, fill:false}).addTo(gridLayer); poly.options.hexCoords={q,r}; poly.on('click',()=>{ const key=k; if(removedHexes.has(key)) removedHexes.delete(key); else removedHexes.add(key); drawGrid(); }); });
 }
 
-genGridBtn.addEventListener('click', async ()=>{ await initMap(assetSelect.value); removedHexes=new Set(); addedHexes=new Set(); drawGrid(); });
+genGridBtn.addEventListener('click', async ()=>{
+  if (!currentMapPath) {
+    alert("Sélectionne d'abord une carte !");
+    return;
+  }
+  removedHexes = new Set();
+  addedHexes = new Set();
+  drawGrid(); // ne recharge plus la carte
+});
+
 exportProjectBtn.addEventListener('click', ()=>{
   const data={ map: assetSelect.value, hexSize: currentHexSize(), removedHexes: Array.from(removedHexes).map(k=>k.split(',').map(Number)), addedHexes: Array.from(addedHexes).map(k=>k.split(',').map(Number)), armies: [] };
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='project.json'; a.click();
