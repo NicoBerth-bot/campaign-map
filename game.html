@@ -1,1 +1,86 @@
-<!doctype html><html lang="fr"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Campagne</title><link rel="stylesheet" href="style.css"/><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script></head><body><div class="topbar"><div style="display:flex; gap:8px; align-items:center;"><label>Charger projet: <input type="file" id="projFile" accept="application/json"/></label><label style="margin-left:8px;">Hex(px):<input id="gameHexSize" type="number" value="100" style="width:80px"/></label><button id="addArmyBtn">Ajouter armée</button><button id="exportArmies">Exporter armées</button><a href='index.html'><button style='background:#666'>Retour</button></a></div><div class='small'>Cliquer "Ajouter armée" puis cliquer sur la carte pour placer. Glisser pour déplacer.</div></div><div id="map"></div><script src="script-game.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <title>Mode Campagne – Bain de Sang</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Leaflet -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9B0qIjJZRGuk2/Z9VM+rF2zVYbR1xTLwYQ="
+    crossorigin=""
+  ></script/
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    #controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: .5rem 1rem;
+      padding: .75rem 1rem;
+      background: #0f172a; /* slate-900 */
+      color: #e2e8f0;      /* slate-200 */
+      align-items: center;
+    }
+    #controls label { display: flex; gap:.5rem; align-items: center; font-size: .95rem; }
+    #controls input[type="text"] { width: 100%; }
+    #controls button {
+      padding: .5rem .75rem; border: 1px solid #334155; border-radius: .375rem;
+      background: #1e293b; color: #e2e8f0; cursor: pointer;
+    }
+    #controls button:hover { background:#0b1220; }
+    #map { width: 100%; height: calc(100vh - 160px); }
+    #sidebar {
+      padding: .5rem 1rem; background:#0b1220; color:#cbd5e1; border-top: 1px solid #1f2937;
+      display: grid; grid-template-columns: 1fr; gap: .5rem;
+    }
+    #armyList > div {
+      display:flex; align-items:center; gap:.5rem; padding:.35rem .5rem; background:#111827; border:1px solid #1f2937; border-radius:.375rem;
+    }
+    .badge { display:inline-block; width:12px; height:12px; border-radius:999px; border:2px solid #000; }
+    .muted { opacity:.7; font-size:.9rem; }
+  </style>
+</head>
+<body>
+
+  <div id="controls">
+    <label>
+      Importer un projet (JSON)
+      <input type="file" id="importProject" accept="application/json" />
+    </label>
+
+    <label>
+      Grille
+      <input type="checkbox" id="toggleGrid" checked />
+    </label>
+
+    <label>
+      Snap (accrochage)
+      <input type="checkbox" id="toggleSnap" checked />
+    </label>
+
+    <label>
+      Nom armée
+      <input type="text" id="armyName" placeholder="Armée A" />
+    </label>
+
+    <label>
+      Couleur
+      <input type="color" id="armyColor" value="#d22a2a" />
+    </label>
+
+    <button id="addArmyBtn">Ajouter une armée (puis cliquer sur la carte)</button>
+    <button id="exportStateBtn">Exporter l’état (JSON)</button>
+    <button id="clearArmiesBtn" title="Supprime toutes les armées">Vider les armées</button>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="sidebar">
+    <div class="muted">Armées :</div>
+    <div id="armyList"></div>
+  </div>
+
+  <script src="script-game.js"></script>
+</body>
+</html>
