@@ -5,23 +5,21 @@
   <title>Mode Campagne – Bain de Sang</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Leaflet -->
-  https://unpkg.com/leaflet@1.9.4/dist/leaflet.css
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Zhref="style.css" />
+  <!-- Leaflet CSS + JS (CDN officiels) -->
+  <link
+   npkg.com/leaflet@1.9.4/dist/leaflet.css
+  https://unpkg.com/leaflet@1.9.4/dist/leaflet.js
+
+  <!-- Ton CSS global (facultatif) -->
+  <link rel="stylesheet" href="style.css" />
 
   <!-- Styles spécifiques à la page -->
   <style>
     :root {
-      --bg: #0f172a;     /* slate-900 */
-      --bg-2: #0b1220;
-      --txt: #e2e8f0;    /* slate-200 */
-      --muted: #94a3b8;
-      --panel: #111827;  /* gray-900 */
-      --border: #1f2937; /* gray-800 */
-      --btn: #1e293b;    /* slate-800 */
-      --btn-hover: #0b1220;
+      --bg: #0f172a;     --bg-2: #0b1220;
+      --txt: #e2e8f0;    --muted: #94a3b8;
+      --panel: #111827;  --border: #1f2937;
+      --btn: #1e293b;    --btn-hover: #0b1220;
     }
     html, body { height: 100%; }
     body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: var(--bg); color: var(--txt); }
@@ -30,28 +28,19 @@
     #controls {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: .6rem 1rem;
-      padding: .75rem 1rem;
-      background: var(--bg);
-      border-bottom: 1px solid var(--border);
+      gap: .6rem 1rem; padding: .75rem 1rem;
+      background: var(--bg); border-bottom: 1px solid var(--border);
       align-items: center;
     }
     #controls label { display: grid; gap: .35rem; font-size: .95rem; }
-    #controls input[type="text"],
-    #controls input[type="color"],
-    #controls input[type="file"],
-    #controls input[type="checkbox"] {
-      accent-color: #f59e0b;
-    }
     #controls input[type="text"],
     #controls input[type="color"] {
       background: var(--panel); color: var(--txt);
       border: 1px solid var(--border);
       padding: .45rem .55rem; border-radius: .375rem;
     }
-    #controls input[type="file"] {
-      color: var(--muted);
-    }
+    #controls input[type="file"] { color: var(--muted); }
+    #controls input[type="checkbox"] { accent-color: #f59e0b; }
     #controls button {
       padding: .55rem .8rem; border: 1px solid var(--border); border-radius: .375rem;
       background: var(--btn); color: var(--txt); cursor: pointer;
@@ -63,7 +52,8 @@
 
     /* Liste d’armées */
     #sidebar {
-      padding: .5rem 1rem; background: var(--bg-2); color: var(--txt); border-top: 1px solid var(--border);
+      padding: .5rem 1rem; background: var(--bg-2); color: var(--txt);
+      border-top: 1px solid var(--border);
       display: grid; grid-template-columns: 1fr; gap: .5rem;
     }
     #armyList > div {
@@ -71,10 +61,7 @@
       padding:.35rem .5rem; background:#111827;
       border:1px solid #1f2937; border-radius:.375rem;
     }
-    .badge {
-      display:inline-block; width:12px; height:12px;
-      border-radius:999px; border:2px solid #000;
-    }
+    .badge { display:inline-block; width:12px; height:12px; border-radius:999px; border:2px solid #000; }
     .muted { opacity:.7; font-size:.9rem; }
   </style>
 </head>
@@ -123,6 +110,23 @@
 
   <!-- Script campagne -->
   <script src="script-game.js"></script>
+
+  <!-- Fallback local si le CDN échoue (optionnel) -->
+  <script>
+    window.addEventListener('error', function(e) {
+      // Si Leaflet n’est pas dispo, charger les fichiers locaux
+      if (!window.L) {
+        const l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = 'vendor/leaflet/leaflet.css'; // place les fichiers localement si tu veux le fallback
+        document.head.appendChild(l);
+
+        const s = document.createElement('script');
+        s.src = 'vendor/leaflet/leaflet.js';
+        document.head.appendChild(s);
+      }
+    }, { once: true });
+  </script>
 
   <noscript>
     <p style="padding:1rem;color:#fca5a5;background:#111827;border-top:1px solid #1f2937;">
