@@ -1,4 +1,4 @@
-// script-editor.js (VERSION STABLE & CORRIGÉE)
+// script-editor.js (VERSION AVEC SÉLECTION RECTANGULAIRE)
 
 // --- Références UI ---
 const mapSelector = document.getElementById('mapSelector');
@@ -13,8 +13,13 @@ let gridLayer = null;
 let mapSize = null;
 let currentMapPath = null;
 
-let removedHexes = new Set(); // hex retirés
-let addedHexes = new Set();   // hex ajoutés explicitement
+let removedHexes = new Set();
+let addedHexes = new Set();
+
+// État pour la sélection rectangulaire
+let isDrawingSelection = false;
+let selectionStart = null;
+let selectionRect = null;
 
 // --- Math hexagones (flat-top axial) ---
 function axial_to_pixel(q, r, size) {
@@ -55,13 +60,13 @@ function hexPolygonLatLng(q, r, size) {
   const c = axial_to_pixel(q, r, size);
   const pts = [];
   for (let i = 0; i < 6; i++) {
-    const angle = Math.PI / 180 * (60 * i); // flat-top
+    const angle = Math.PI / 180 * (60 * i);
     pts.push([c.y + size * Math.sin(angle), c.x + size * Math.cos(angle)]);
   }
   return pts;
 }
 
-// --- Chargement des cartes (assets.json) ---
+// --- Chargement des cartes ---
 async function loadMapsList() {
   try {
     const res = await fetch('assets/assets.json');
@@ -118,6 +123,7 @@ async function initMap(imgPath) {
 
   gridLayer = L.layerGroup().addTo(map);
 
+  // Ajout d'un hex hors grille (Ctrl+clic ou clic droit)
   map.on('click', (e) => {
     if (e.originalEvent && e.originalEvent.ctrlKey) {
       const size = currentHexSize();
@@ -138,6 +144,36 @@ async function initMap(imgPath) {
     removedHexes.delete(key);
     drawGrid();
   });
+
+  // Sélection rectangulaire
+  map.on('mousedown', (e) => {
+    if (!e.originalEvent.shiftKey) return;
+    isDrawingSelection = true;
+    selectionStart = e.latlng;
+    if (selectionRect) gridLayer.removeLayer(selectionRect);
+    selectionRect = L.rectangle([selectionStart, selectionStart], {
+      color: 'yellow',
+      weight: 1,
+      fillOpacity: 0.1
+    }).addTo(gridLayer);
+  });
+
+  map.on('mousemove', (e) => {
+    if (!isDrawingSelection || !selectionRect) return;
+    selectionRect.setBounds(L.latLngBounds(selectionStart, e.latlng));
+  });
+
+  map.on('mouseup', (e) => {
+    if (!isDrawingSelection) return;
+    isDrawingSelection = false;
+    if (!selectionRect) return;
+
+    const bounds = selectionRect.getBounds();
+    gridLayer.removeLayer(selectionRect);
+    selectionRect = null;
+
+    applyRectangleSelection(bounds);
+  });
 }
 
 // --- Taille hex ---
@@ -152,13 +188,10 @@ function drawGrid() {
   gridLayer.clearLayers();
 
   const size = currentHexSize();
-
-  // Bornes q : chaque colonne q couvre 1.5*size en largeur
   const qMin = Math.floor(-size / (1.5 * size));
   const qMax = Math.ceil((mapSize.w + size) / (1.5 * size));
 
   for (let q = qMin; q <= qMax; q++) {
-    // r dépend de q
     const rMin = Math.floor((-size) / (Math.sqrt(3) * size) - q / 2);
     const rMax = Math.ceil((mapSize.h + size) / (Math.sqrt(3) * size) - q / 2);
 
@@ -178,6 +211,7 @@ function drawGrid() {
         interactive: true
       }).addTo(gridLayer);
 
+      // Suppression/ajout individuel
       poly.on('click', () => {
         if (addedHexes.has(key)) {
           addedHexes.delete(key);
@@ -216,6 +250,29 @@ function drawGrid() {
       drawGrid();
     });
   });
+}
+
+// --- Application sélection rectangulaire ---
+function applyRectangleSelection(bounds) {
+  const size = currentHexSize();
+  const qMin = Math.floor(-size / (1.5 * size));
+  const qMax = Math.ceil((mapSize.w + size) / (1.5 * size));
+
+  for (let q = qMin; q <= qMax; q++) {
+    const rMin = Math.floor((-size) / (Math.sqrt(3) * size) - q / 2);
+    const rMax = Math.ceil((mapSize.h + size) / (Math.sqrt(3) * size) - q / 2);
+
+    for (let r = rMin; r <= rMax; r++) {
+      const { x, y } = axial_to_pixel(q, r, size);
+      const point = L.latLng(y, x);
+      if (bounds.contains(point)) {
+        const key = `${q},${r}`;
+        if (removedHexes.has(key)) removedHexes.delete(key);
+        else removedHexes.add(key);
+      }
+    }
+  }
+  drawGrid();
 }
 
 // --- Actions UI ---
