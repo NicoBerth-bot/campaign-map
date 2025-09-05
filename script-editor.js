@@ -1,20 +1,82 @@
-// --- EDITOR (grille éditable + assets.json + ajout/suppression) ---
+// script-editor.js (VERSION CORRIGÉE)
+// Grille editable (flat-top), suppression/ajout d'hex,
+// extents calculés pour coller à la taille d'image,
+// clic gauche = toggle suppression (ou suppression d'un hex ajouté),
+// Ctrl+clic ou clic-droit sur la carte = ajout d'hex.
 
-// UI
+// ----------------- UI references -----------------
+const mapSelector = document.getElementById('mapSelector'); // <select> rempli depuis assets.json
 const genGridBtn = document.getElementById('genGridBtn');
 const exportProjectBtn = document.getElementById('exportProject');
 const hexSizeInput = document.getElementById('hexSize');
 
-let mapSelector = document.getElementById('mapSelector'); // doit exister dans editor.html
+// ----------------- State -----------------
+let map = null;
+let imgLayer = null;
+let gridLayer = null;
+let mapSize = null;
 let currentMapPath = null;
 
-// State
-let map, imgLayer, gridLayer;
-let mapSize = null;
-let removedHexes = new Set();
-let addedHexes = new Set();
+let removedHexes = new Set(); // clés "q,r" pour hex supprimés
+let addedHexes = new Set();   // clés "q,r" pour hex ajoutés explicitement
 
-// --- Chargement des cartes depuis assets.json (file + name) ---
+// ----------------- Helpers mathématiques (flat-top axial) -----------------
+// axial -> pixel (center)
+function axial_to_pixel(q, r, size) {
+  // flat-top axial coordinates (RedBlob)
+  const x = size * (3 / 2) * q;
+  const y = size * Math.sqrt(3) * (r + q / 2);
+  return { x, y };
+}
+
+// pixel -> axial (fractional), puis on arrondit correctement
+function pixel_to_axial(x, y, size) {
+  const q = (2 / 3) * x / size;
+  const r = (y / (Math.sqrt(3) * size)) - q / 2;
+  return { q, r };
+}
+
+// cube rounding for correct integer axial
+function cube_round(x, y, z) {
+  let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+  const x_diff = Math.abs(rx - x);
+  const y_diff = Math.abs(ry - y);
+  const z_diff = Math.abs(rz - z);
+  if (x_diff > y_diff && x_diff > z_diff) rx = -ry - rz;
+  else if (y_diff > z_diff) ry = -rx - rz;
+  else rz = -rx - ry;
+  return { x: rx, y: ry, z: rz };
+}
+
+function axial_round(q, r) {
+  const x = q;
+  const z = r;
+  const y = -x - z;
+  const cr = cube_round(x, y, z);
+  return { q: cr.x, r: cr.z };
+}
+
+// Pixel -> rounded axial (integers)
+function pixelToHex_axial(x, y, size) {
+  const frac = pixel_to_axial(x, y, size);
+  return axial_round(frac.q, frac.r);
+}
+
+// Hexagon polygon (lat,lng pairs) for Leaflet (lat=Y, lng=X)
+function hexPolygonLatLng(q, r, size) {
+  const c = axial_to_pixel(q, r, size);
+  const pts = [];
+  // flat-top: vertex angles 0,60,120,... (use cos->x, sin->y)
+  for (let i = 0; i < 6; i++) {
+    const angle = Math.PI / 180 * (60 * i);
+    const px = c.x + size * Math.cos(angle);
+    const py = c.y + size * Math.sin(angle);
+    pts.push([py, px]);
+  }
+  return pts;
+}
+
+// ----------------- Chargement de la liste des cartes (assets.json) -----------------
 async function loadMapsList() {
   try {
     const res = await fetch('assets/assets.json');
@@ -29,29 +91,26 @@ async function loadMapsList() {
       mapSelector.appendChild(opt);
     });
 
-    // Sélection par défaut
+    // sélection par défaut et initialisation
     if (mapSelector.options.length > 0) {
       mapSelector.selectedIndex = 0;
       currentMapPath = mapSelector.value;
       await initMap(currentMapPath);
       drawGrid();
     }
-  } catch (e) {
-    console.error(e);
+  } catch (err) {
+    console.error('Erreur assets.json:', err);
   }
 }
 
+// appeler pour charger la carte choisie
 function loadSelectedMap() {
   currentMapPath = mapSelector.value;
   if (!currentMapPath) return;
-  initMap(currentMapPath).then(drawGrid);
+  initMap(currentMapPath).then(drawGrid).catch(err => console.error(err));
 }
 
-// --- Helpers généraux ---
-function currentHexSize() {
-  const v = parseFloat(hexSizeInput.value);
-  return Number.isFinite(v) && v > 0 ? v : 100;
-}
+// ----------------- Initialisation de la carte -----------------
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -61,7 +120,6 @@ function loadImage(src) {
   });
 }
 
-// --- Carte Leaflet ---
 async function initMap(imgPath) {
   if (map) map.remove();
 
@@ -77,10 +135,22 @@ async function initMap(imgPath) {
 
   gridLayer = L.layerGroup().addTo(map);
 
-  // Empêcher le menu contextuel natif pour autoriser clic droit = ajout d'hex
+  // ctrl+clic sur la carte = ajout d'hex (alternative au clic droit)
+  map.on('click', (e) => {
+    if (e.originalEvent && e.originalEvent.ctrlKey) {
+      const size = currentHexSize();
+      const { q, r } = pixelToHex_axial(e.latlng.lng, e.latlng.lat, size);
+      const key = `${q},${r}`;
+      // si c'était marqué supprimé, on le réactive ; sinon on marque en ajouté
+      addedHexes.add(key);
+      removedHexes.delete(key);
+      drawGrid();
+    }
+  });
+
+  // clic droit sur la carte = ajout d'hex (user-friendly)
   map.on('contextmenu', (e) => {
     e.originalEvent.preventDefault();
-    // Ajout d'un hex à l'endroit du clic droit
     const size = currentHexSize();
     const { q, r } = pixelToHex_axial(e.latlng.lng, e.latlng.lat, size);
     const key = `${q},${r}`;
@@ -88,106 +158,78 @@ async function initMap(imgPath) {
     removedHexes.delete(key);
     drawGrid();
   });
-
-  // Ctrl+clic n'importe où sur la carte = ajout d'hex
-  map.on('click', (e) => {
-    if (e.originalEvent && e.originalEvent.ctrlKey) {
-      const size = currentHexSize();
-      const { q, r } = pixelToHex_axial(e.latlng.lng, e.latlng.lat, size);
-      const key = `${q},${r}`;
-      addedHexes.add(key);
-      removedHexes.delete(key);
-      drawGrid();
-    }
-  });
 }
 
-// --- Géométrie hex (flat-top, axial) ---
-// Formules "Red Blob Games" adaptées flat-top (axial q,r)
-function axial_to_pixel(q, r, size) {
-  const x = size * (3 / 2) * q;
-  const y = size * Math.sqrt(3) * (r + q / 2);
-  return { x, y };
-}
-function pixel_to_axial(x, y, size) {
-  const q = (2 / 3) * x / size;
-  const r = (y / (Math.sqrt(3) * size)) - q / 2;
-  return { q, r };
-}
-function cube_round(x, y, z) {
-  let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
-  const x_diff = Math.abs(rx - x);
-  const y_diff = Math.abs(ry - y);
-  const z_diff = Math.abs(rz - z);
-  if (x_diff > y_diff && x_diff > z_diff) rx = -ry - rz;
-  else if (y_diff > z_diff) ry = -rx - rz;
-  else rz = -rx - ry;
-  return { x: rx, y: ry, z: rz };
-}
-function axial_round(q, r) {
-  // axial (q,r) -> cube (x=q, z=r, y=-x-z) -> round -> axial
-  const x = q, z = r, y = -x - z;
-  const cr = cube_round(x, y, z);
-  return { q: cr.x, r: cr.z };
-}
-function hexPolygonLatLng(q, r, size) {
-  const c = axial_to_pixel(q, r, size);
-  const pts = [];
-  for (let i = 0; i < 6; i++) {
-    const ang = Math.PI / 180 * (60 * i); // flat-top
-    pts.push([c.y + size * Math.sin(ang), c.x + size * Math.cos(ang)]);
-  }
-  return pts;
-}
-// Confort : raccourci
-function pixelToHex_axial(x, y, size) {
-  const frac = pixel_to_axial(x, y, size);
-  return axial_round(frac.q, frac.r);
+// ----------------- Calcul des extents et dessin -----------------
+function currentHexSize() {
+  const v = parseFloat(hexSizeInput.value);
+  return Number.isFinite(v) && v > 0 ? v : 100;
 }
 
-// --- Grille : dessin + interactions ---
 function drawGrid() {
+  if (!map || !mapSize) return;
   gridLayer.clearLayers();
+
   const size = currentHexSize();
+  const margin = 2; // colonnes/rows supplémentaires pour sécurité
 
-  // Couverture rectangle de l'image (marges pour éviter bords vides)
-  const qMax = Math.ceil(mapSize.w / (1.5 * size)) + 4;            // 1.5*size = pas horizontal (flat-top)
-  const rMax = Math.ceil(mapSize.h / (Math.sqrt(3) * size)) + 4;   // sqrt(3)*size = pas vertical
+  // Calcul de q range basé sur largeur de l'image :
+  // centers x = 1.5 * size * q
+  // condition: center.x - size <= mapWidth && center.x + size >= 0
+  const qMin = Math.floor(( - size ) / (1.5 * size)) - margin;
+  const qMax = Math.ceil((mapSize.w + size) / (1.5 * size)) + margin;
 
-  // Dessin de la grille "de base"
-  for (let r = -4; r <= rMax; r++) {
-    for (let q = -4; q <= qMax; q++) {
+  // Pour chaque q, calculer rMin/rMax nécessaires pour couvrir la hauteur
+  for (let q = qMin; q <= qMax; q++) {
+    // center.y = sqrt(3)*size*(r + q/2)
+    // conditions: center.y - size <= mapHeight && center.y + size >= 0
+    // => r range:
+    const rMin = Math.floor(( - size ) / (Math.sqrt(3) * size) - q / 2) - margin;
+    const rMax = Math.ceil((mapSize.h + size) / (Math.sqrt(3) * size) - q / 2) + margin;
+
+    for (let r = rMin; r <= rMax; r++) {
       const key = `${q},${r}`;
+      // si hex supprimé (et pas explicitement ré-ajouté), on ne le dessine pas
       if (removedHexes.has(key) && !addedHexes.has(key)) continue;
 
+      // dessiner hex normal ou ajouté explicitement
       const coords = hexPolygonLatLng(q, r, size);
+      const isAdded = addedHexes.has(key);
+
       const poly = L.polygon(coords, {
-        color: 'white',
+        color: isAdded ? '#00a86b' : 'white', // added = greenish, base = white
         weight: 1,
         opacity: 0.95,
-        fill: true,          // fill pour augmenter la zone cliquable
-        fillOpacity: 0.05,   // discret
+        fill: true,
+        fillOpacity: isAdded ? 0.10 : 0.04,
         interactive: true
       }).addTo(gridLayer);
 
       poly.options.hexCoords = { q, r };
 
-      // Clic gauche : bascule suppression/activation
+      // CLICK LEFT: comportement
+      // - si hex était dans addedHexes => le clic supprime l'ajout (supprimer hex ajouté)
+      // - sinon toggle removedHexes (supprime / réactive)
       poly.on('click', (e) => {
-        // Si Ctrl+clic sur un hex déjà présent, on force "ajout explicite"
-        if (e.originalEvent && e.originalEvent.ctrlKey) {
-          addedHexes.add(key);
-          removedHexes.delete(key);
+        // empêcher propagation et comportement par défaut
+        if (e.originalEvent) e.originalEvent.stopPropagation();
+
+        const k = key;
+        if (addedHexes.has(k)) {
+          // suppression définitive de l'hex ajouté (on "annule" l'ajout)
+          addedHexes.delete(k);
+          removedHexes.delete(k); // on nettoie au cas où
         } else {
-          if (removedHexes.has(key)) removedHexes.delete(key);
-          else removedHexes.add(key);
+          // toggle suppression sur la base
+          if (removedHexes.has(k)) removedHexes.delete(k);
+          else removedHexes.add(k);
         }
         drawGrid();
       });
 
-      // Clic droit sur un hex : marquer comme "ajouté" (utile si en zone limite)
+      // RIGHT CLICK on polygon = mark as added (handy)
       poly.on('contextmenu', (e) => {
-        e.originalEvent.preventDefault();
+        if (e.originalEvent) e.originalEvent.preventDefault();
         addedHexes.add(key);
         removedHexes.delete(key);
         drawGrid();
@@ -195,30 +237,33 @@ function drawGrid() {
     }
   }
 
-  // Dessin des hex "ajoutés" explicites qui seraient hors de la base
+  // Dessiner aussi les hex "ajoutés" explicitement qui pourraient être en-dehors des bornes calculées
+  // (rare mais utile si user a ajouté loin)
   addedHexes.forEach(k => {
+    // si déjà dessiné (dans la boucle ci-dessus) skip: on testera par coord within ranges
+    // mais pour simplicité: si on n'a pas un poly à ce key, on dessine encore (double-draw est inoffensif)
     const [q, r] = k.split(',').map(Number);
-    // S'ils ont déjà été dessinés ci-dessus, inutile de les redessiner
-    // (On laisse quand même ce bloc pour les hex vraiment hors couverture)
+    // sécurité : ne pas dupliquer l'hex déjà présent
+    // (we draw with same style as isAdded above)
     const coords = hexPolygonLatLng(q, r, size);
     const poly = L.polygon(coords, {
-      color: 'white',
+      color: '#00a86b',
       weight: 1,
       opacity: 0.95,
       fill: true,
-      fillOpacity: 0.05,
+      fillOpacity: 0.10,
       interactive: true
     }).addTo(gridLayer);
     poly.options.hexCoords = { q, r };
-
-    poly.on('click', () => {
+    poly.on('click', (e) => {
       const key = `${q},${r}`;
-      if (removedHexes.has(key)) removedHexes.delete(key);
-      else removedHexes.add(key);
+      // click on an added hex deletes it
+      addedHexes.delete(key);
+      removedHexes.delete(key);
       drawGrid();
     });
     poly.on('contextmenu', (e) => {
-      e.originalEvent.preventDefault();
+      if (e.originalEvent) e.originalEvent.preventDefault();
       const key = `${q},${r}`;
       addedHexes.add(key);
       removedHexes.delete(key);
@@ -227,13 +272,14 @@ function drawGrid() {
   });
 }
 
-// --- Actions UI ---
+// ----------------- UI Actions -----------------
 genGridBtn.addEventListener('click', () => {
   if (!currentMapPath) {
     alert("Sélectionne d'abord une carte.");
     return;
   }
-  // On ne recharge PAS la carte ici : on ne fait que régénérer la grille
+  // Regénère la grille sans recharger l'image
+  // (si tu veux repartir d'une grille vierge, vide removed/added)
   removedHexes = new Set();
   addedHexes = new Set();
   drawGrid();
@@ -254,10 +300,10 @@ exportProjectBtn.addEventListener('click', () => {
   a.click();
 });
 
-// --- Démarrage ---
-document.addEventListener('DOMContentLoaded', loadMapsList);
-
-// Si tu as un bouton/événement pour changer de carte :
+// Change de carte via select
 if (mapSelector) {
   mapSelector.addEventListener('change', loadSelectedMap);
 }
+
+// Démarrage : charge la liste d'assets et initialise la première carte
+document.addEventListener('DOMContentLoaded', loadMapsList);
